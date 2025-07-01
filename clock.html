@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Responsive SDC create_clock Visualizer v6.0</title>
+    <style>
+        :root {
+            --primary-color: #3f51b5; --primary-dark: #303f9f; --accent-color: #d32f2f; --bg-color: #f4f6f8;
+            --card-bg: #ffffff; --text-color: #333; --subtle-text: #666; --border-color: #e0e0e0;
+        }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: var(--bg-color); color: var(--text-color); margin: 0; padding: 20px; }
+        .main-container { max-width: 1500px; margin: 0 auto; }
+        header { text-align: center; margin-bottom: 30px; }
+        header h1 { color: var(--primary-dark); font-weight: 600; font-size: 2.2em; }
+        .content-grid { display: flex; flex-wrap: wrap; gap: 30px; justify-content: center; }
+        .controls, .visuals { background-color: var(--card-bg); padding: 30px; border-radius: 12px; box-shadow: 0 6px 20px rgba(0,0,0,0.08); }
+        .controls { flex: 1; min-width: 380px; max-width: 450px; }
+        .visuals { flex: 2; min-width: 500px; display: flex; flex-direction: column; gap: 25px; }
+        h2 { color: var(--primary-color); border-bottom: 2px solid var(--border-color); padding-bottom: 10px; margin-top: 0; font-size: 1.5em; }
+        .form-group { margin-bottom: 20px; }
+        .intro-text { font-size: 0.95em; color: var(--subtle-text); background-color: #f9f9f9; border-left: 3px solid var(--primary-color); padding: 10px 15px; margin-bottom: 25px; border-radius: 4px; }
+        label { display: block; font-weight: 600; margin-bottom: 8px; color: #444; }
+        input[type="text"], input[type="number"], textarea { width: calc(100% - 22px); padding: 10px; border: 1px solid #ccc; border-radius: 5px; font-size: 1em; font-family: 'Fira Code', 'Courier New', monospace; transition: border-color 0.2s, box-shadow 0.2s; }
+        input:focus, textarea:focus { border-color: var(--primary-color); box-shadow: 0 0 0 3px rgba(63, 81, 181, 0.2); outline: none; }
+        input:disabled { background-color: #e9e9e9; cursor: not-allowed; }
+        .waveform-group { display: flex; gap: 10px; }
+        .tooltip { position: relative; display: inline-block; margin-left: 8px; cursor: help; }
+        .tooltip .tooltiptext { visibility: hidden; width: 250px; background-color: #555; color: #fff; text-align: center; border-radius: 6px; padding: 8px; position: absolute; z-index: 1; bottom: 125%; left: 50%; margin-left: -125px; opacity: 0; transition: opacity 0.3s; font-weight: normal; font-size: 0.9em; }
+        .tooltip:hover .tooltiptext { visibility: visible; opacity: 1; }
+        .button-group { display: flex; gap: 10px; margin-top: 20px; }
+        .button-group button { flex-grow: 1; padding: 12px; border: none; border-radius: 5px; font-size: 1.1em; cursor: pointer; transition: background-color 0.3s; color: white; }
+        #visualize-button { background-color: var(--primary-color); }
+        #visualize-button:hover { background-color: var(--primary-dark); }
+        #reset-button { background-color: var(--subtle-text); }
+        #reset-button:hover { background-color: #555; }
+        #sdc-output-container { background-color: #282c34; border-radius: 5px; padding: 15px; }
+        #sdc-output { color: #abb2bf; font-family: 'Fira Code', 'Courier New', monospace; white-space: pre-wrap; word-wrap: break-word; }
+        #explanation { background-color: #e8eaf6; border-left: 4px solid var(--primary-color); padding: 15px; border-radius: 4px; }
+        .diagram { display: flex; align-items: center; justify-content: center; gap: 20px; padding: 10px; min-height: 150px; }
+        .chip-container { text-align: center; }
+        .chip-svg { width: 100px; height: 100px; }
+        .chip-label { font-size: 0.9em; color: var(--subtle-text); margin-top: 5px; }
+        .source-box { border: 2px dashed var(--primary-color); padding: 10px 15px; text-align: center; background-color: #f0f4ff; min-width: 80px; border-radius: 5px; }
+        .arrow { font-size: 2.5em; color: var(--primary-color); font-weight: bold; }
+        canvas { display: block; border: 1px solid var(--border-color); background-color: #fdfdfd; border-radius: 4px; width: 100%; height: auto; }
+        #error-message { color: var(--accent-color); font-weight: bold; margin-top: 15px; background-color: #ffebf0; padding: 10px; border-radius: 5px; display: none; }
+
+        /* --- RESPONSIVE DESIGN --- */
+        @media (max-width: 1100px) {
+            .content-grid {
+                flex-direction: column;
+            }
+            .controls, .visuals {
+                min-width: 100%;
+                max-width: 100%;
+                padding: 20px;
+                box-sizing: border-box; /* Ensures padding is included in the width */
+            }
+            body {
+                padding: 10px;
+            }
+            header h1 { font-size: 1.8em; }
+            h2 { font-size: 1.3em; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="main-container">
+    <header><h1>Interactive SDC <code>create_clock</code> Visualizer</h1></header>
+    <div class="content-grid">
+        <div class="controls">
+            <h2>Controls</h2>
+            <p class="intro-text">Adjust parameters and click "Generate & Visualize".</p>
+            <form id="clock-form">
+                <div class="form-group"><label for="period">-period (ns)</label><input type="number" id="period" value="10" min="0.1" step="0.1" required></div>
+                <div class="form-group"><label for="rise-time">-waveform {rise fall} (ns)<span class="tooltip">?<span class="tooltiptext">Defines the clock's duty cycle. By default, it's 50%.</span></span></label><div class="waveform-group"><input type="number" id="rise-time" value="0" min="0" step="0.1" required><input type="number" id="fall-time" value="5" min="0" step="0.1" required></div></div>
+                <div class="form-group"><label for="clock-name">-name (optional)</label><input type="text" id="clock-name" placeholder="e.g., sys_clk"></div>
+                <div class="form-group"><input type="checkbox" id="virtual-clock" style="margin-right: 8px;"><label for="virtual-clock" style="display: inline-block;">Virtual Clock<span class="tooltip">?<span class="tooltiptext">A clock reference for I/O timing that doesn't exist inside the chip.</span></span></label></div>
+                <div class="form-group"><label for="source-object">source_objects</label><input type="text" id="source-object" value="[get_ports clk_in]" placeholder="[get_ports clk] or [get_pins ...]" ></div>
+                <div class="form-group"><label for="comment">-comment (optional)</label><textarea id="comment" rows="2" placeholder="Main 100MHz system clock"></textarea></div>
+                <div class="button-group"><button type="button" id="visualize-button">Generate & Visualize</button><button type="button" id="reset-button">Reset</button></div>
+            </form>
+        </div>
+        <div class="visuals">
+            <h2>Visualization</h2>
+            <div id="diagram-container"><div id="design-diagram" class="diagram"></div></div>
+            <div id="canvas-container"><canvas id="clock-canvas"></canvas></div>
+            <div id="explanation"></div>
+            <div><h2>Generated SDC Command</h2><div id="sdc-output-container"><pre id="sdc-output"></pre></div></div>
+            <div id="error-message"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const periodInput = document.getElementById('period');
+    const riseTimeInput = document.getElementById('rise-time');
+    const fallTimeInput = document.getElementById('fall-time');
+    const virtualClockCheckbox = document.getElementById('virtual-clock');
+    const sourceObjectInput = document.getElementById('source-object');
+    const visualizeButton = document.getElementById('visualize-button');
+    const resetButton = document.getElementById('reset-button');
+    const sdcOutput = document.getElementById('sdc-output');
+    const explanation = document.getElementById('explanation');
+    const designDiagram = document.getElementById('design-diagram');
+    const errorMessage = document.getElementById('error-message');
+    const canvasContainer = document.getElementById('canvas-container');
+    const canvas = document.getElementById('clock-canvas');
+    const ctx = canvas.getContext('2d');
+    
+    let animationFrameId;
+    let lastSourceObjectValue = sourceObjectInput.value;
+
+    const chipSVG = `<div class="chip-container"><svg class="chip-svg" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><rect x="15" y="15" width="70" height="70" fill="#78909c" rx="5"/><rect x="25" y="25" width="50" height="50" fill="#546e7a" rx="3"/><rect x="5" y="20" width="10" height="8" fill="#90a4ae"/><rect x="5" y="40" width="10" height="8" fill="#90a4ae"/><rect x="5" y="60" width="10" height="8" fill="#90a4ae"/><rect x="85" y="20" width="10" height="8" fill="#90a4ae"/><rect x="85" y="40" width="10" height="8" fill="#90a4ae"/><rect x="85" y="60" width="10" height="8" fill="#90a4ae"/><rect x="20" y="5" width="8" height="10" fill="#90a4ae"/><rect x="40" y="5" width="8" height="10" fill="#90a4ae"/><rect x="60" y="5" width="8" height="10" fill="#90a4ae"/><rect x="20" y="85" width="8" height="10" fill="#90a4ae"/><rect x="40" y="85" width="8" height="10" fill="#90a4ae"/><rect x="60" y="85" width="8" height="10" fill="#90a4ae"/></svg><div class="chip-label">ASIC / FPGA</div></div>`;
+
+    // --- EVENT LISTENERS ---
+    visualizeButton.addEventListener('click', updateVisualization);
+    resetButton.addEventListener('click', resetToDefaults);
+    window.addEventListener('resize', resizeCanvas);
+    
+    virtualClockCheckbox.addEventListener('change', () => {
+        if (virtualClockCheckbox.checked) {
+            lastSourceObjectValue = sourceObjectInput.value;
+            sourceObjectInput.value = '';
+            sourceObjectInput.disabled = true;
+        } else {
+            sourceObjectInput.disabled = false;
+            sourceObjectInput.value = lastSourceObjectValue;
+        }
+        updateVisualization();
+    });
+
+    periodInput.addEventListener('input', () => {
+        const period = parseFloat(periodInput.value);
+        if (!isNaN(period) && period > 0) {
+            riseTimeInput.value = '0';
+            fallTimeInput.value = (period / 2).toFixed(2);
+        }
+    });
+
+    function resizeCanvas() {
+        // Match canvas logical size to its display size for crisp drawing
+        canvas.width = canvasContainer.clientWidth;
+        canvas.height = canvasContainer.clientWidth / 4; // Maintain a 4:1 aspect ratio
+        updateVisualization();
+    }
+
+    function resetToDefaults() {
+        if (animationFrameId) cancelAnimationFrame(animationFrameId);
+        document.getElementById('clock-form').reset();
+        sourceObjectInput.disabled = false;
+        periodInput.value = '10';
+        riseTimeInput.value = '0';
+        fallTimeInput.value = '5';
+        sourceObjectInput.value = '[get_ports clk_in]';
+        updateVisualization();
+    }
+    
+    function updateVisualization() {
+        if (animationFrameId) cancelAnimationFrame(animationFrameId);
+        
+        const values = {
+            period: parseFloat(periodInput.value), riseTime: parseFloat(riseTimeInput.value), fallTime: parseFloat(fallTimeInput.value),
+            clockName: document.getElementById('clock-name').value.trim(), isVirtual: virtualClockCheckbox.checked,
+            sourceObject: sourceObjectInput.value.trim(), comment: document.getElementById('comment').value.trim()
+        };
+        
+        errorMessage.style.display = 'none';
+        if (!validateInputs(values)) return;
+
+        sdcOutput.textContent = generateSdcCommand(values);
+        updateExplanation(values);
+        updateDiagram(values);
+        drawAndAnimateWaveform(values);
+    }
+
+    function validateInputs({ period, riseTime, fallTime, isVirtual, sourceObject }) {
+        if (isNaN(period) || period <= 0) { showError("Period must be a positive number."); return false; }
+        if (isNaN(riseTime) || isNaN(fallTime) || riseTime < 0 || fallTime < 0) { showError("Rise/Fall times must be numbers >= 0."); return false; }
+        if (fallTime <= riseTime) { showError("Fall time must be greater than Rise time."); return false; }
+        if (fallTime >= period) { showError("Fall time must be less than the Period."); return false; }
+        if (!isVirtual && !sourceObject) { showError("A non-virtual clock requires a Source Object."); return false; }
+        return true;
+    }
+
+    function generateSdcCommand({ period, clockName, riseTime, fallTime, comment, isVirtual, sourceObject }) {
+        let command = `create_clock -period ${period}`;
+        if (clockName) command += ` -name ${clockName}`;
+        if (riseTime !== 0 || fallTime !== period / 2) command += ` -waveform {${riseTime} ${fallTime}}`;
+        if (!isVirtual) command += ` ${sourceObject}`;
+        if (comment) command += ` \\\n    -comment "${comment}"`;
+        return command;
+    }
+    
+    function updateExplanation({ period, riseTime, fallTime, clockName, isVirtual, sourceObject }) {
+        const frequency = (1 / period * 1000).toFixed(2);
+        const dutyCycle = ((fallTime - riseTime) / period * 100).toFixed(2);
+        let html = `<h3>Explanation</h3>This command defines a <strong>${isVirtual ? 'virtual' : 'primary'} clock</strong>.`;
+        if (isVirtual) { html += `<p>A virtual clock acts as an external timing reference for constraining input and output delays relative to an off-chip component.</p>`; }
+        html += `<ul><li><strong>Period:</strong> ${period} ns (<strong>Frequency:</strong> ${frequency} MHz)</li><li><strong>Duty Cycle:</strong> ${dutyCycle}%</li>${clockName ? `<li><strong>Name:</strong> ${clockName}</li>` : ''}${!isVirtual ? `<li><strong>Source:</strong> ${sourceObject}</li>` : ''}</ul>`;
+        explanation.innerHTML = html;
+    }
+
+    function updateDiagram({ isVirtual, sourceObject }) {
+        if (isVirtual) { designDiagram.innerHTML = `<div class="source-box" style="border-style: solid;">External Device</div>${chipSVG}`;
+        } else {
+            const isPll = sourceObject.toLowerCase().includes('get_pins');
+            if (isPll) { designDiagram.innerHTML = chipSVG.replace('<div class="chip-label">ASIC / FPGA</div>', `<div class="source-box" style="position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);">${sourceObject}</div><div class="chip-label">ASIC / FPGA</div>`);
+            } else { designDiagram.innerHTML = `<div class="source-box">${sourceObject}</div><div class="arrow">→</div>${chipSVG}`; }
+        }
+    }
+
+    function showError(message) { errorMessage.textContent = 'Error: ' + message; errorMessage.style.display = 'block'; }
+
+    function drawAndAnimateWaveform({ period, riseTime, fallTime }) {
+        const padding = 50, width = canvas.width, height = canvas.height;
+        if (width <= 0 || height <= 0) return; // Don't draw if canvas has no size
+        const mainHeight = height - padding, cycles = 2.5;
+        const totalTime = period * cycles;
+        const timeToPx = (width - padding) / totalTime;
+        const lowY = mainHeight * 0.8, highY = mainHeight * 0.2;
+        const startTime = performance.now();
+
+        function animate() {
+            const currentTimeNs = ((performance.now() - startTime) / 1500) * period;
+            const markerPos = (currentTimeNs % totalTime) * timeToPx + padding / 2;
+            ctx.clearRect(0, 0, width, height);
+            ctx.strokeStyle = '#bbb'; ctx.lineWidth = 1;
+            ctx.beginPath(); ctx.moveTo(padding / 2, lowY); ctx.lineTo(width - padding / 2, lowY); ctx.stroke();
+            for (let i = 0; i <= cycles; i++) {
+                const x = (i * period) * timeToPx + padding / 2;
+                ctx.moveTo(x, lowY - 5); ctx.lineTo(x, lowY + 5); ctx.stroke();
+                ctx.fillStyle = '#555'; ctx.textAlign = 'center'; ctx.font = '12px Arial';
+                ctx.fillText(`${(i * period).toFixed(1)}ns`, x, lowY + 20);
+            }
+            ctx.beginPath(); ctx.strokeStyle = "var(--primary-color)"; ctx.lineWidth = 2.5;
+            ctx.moveTo(padding / 2, lowY);
+            for (let i = 0; i < cycles + 1; i++) {
+                const cycleStartPx = (i * period) * timeToPx + padding / 2;
+                const risePx = cycleStartPx + riseTime * timeToPx;
+                const fallPx = cycleStartPx + fallTime * timeToPx;
+                const cycleEndPx = cycleStartPx + period * timeToPx;
+                ctx.lineTo(risePx, lowY); ctx.lineTo(risePx, highY); ctx.lineTo(fallPx, highY); ctx.lineTo(fallPx, lowY); ctx.lineTo(cycleEndPx, lowY);
+            }
+            ctx.stroke();
+            ctx.beginPath(); ctx.strokeStyle = "var(--accent-color)"; ctx.lineWidth = 2;
+            ctx.moveTo(markerPos, 0); ctx.lineTo(markerPos, height); ctx.stroke();
+            animationFrameId = requestAnimationFrame(animate);
+        }
+        animate();
+    }
+    
+    resizeCanvas(); // Initial call to set size and draw
+});
+</script>
+
+</body>
+</html>
